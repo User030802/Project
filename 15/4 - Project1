@@ -1,0 +1,108 @@
+SELECT * FROM `project-080302-420409.Covid_deaths.Covid_death  `
+WHERE continent is not NULL
+ORDER BY 3,4;
+
+
+SELECT location,date, total_cases, new_cases, total_deaths, population
+FROM `project-080302-420409.Covid_deaths.Covid_death  `
+WHERE continent is not NULL
+ORDER BY 1,2;
+
+-- so total_case với total_deaths ở Việt Nam
+-- tỉ lệ tử vong vs nhiễm
+SELECT location, date, total_cases,total_deaths, (total_deaths/total_cases)*100 as pct_death
+FROM `project-080302-420409.Covid_deaths.Covid_death  `
+WHERE location = "Vietnam" and continent is not NULL
+ORDER BY 1,2;
+
+-- total_case / population ở việt nam
+-- tỉ lệ nhiễm so vs dân số
+SELECT location, date, total_cases, population, (total_cases/population)*100 as pct_infect_popu
+FROM `project-080302-420409.Covid_deaths.Covid_death  `
+WHERE location = "Vietnam" and continent is not NULL
+ORDER BY 1,2;
+
+-- nước tỉ lệ nhiễm cao nhất
+SELECT location, MAX(total_cases) as Top_infect, population, MAX((total_cases/population))*100 as Top_infect_country
+FROM `project-080302-420409.Covid_deaths.Covid_death  `
+WHERE continent is not NULL
+GROUP BY location, population
+ORDER BY Top_infect_country DESC;
+
+-- nước có tỉ lệ tử vong cao nhất trên dân số và chia theo lục địa
+-- loại vùng như data dùng trong dataset gốc
+-- continent not null -> nếu null -> nước có location là continent nên sẽ nhầm
+SELECT location, MAX(total_deaths) as Top_death
+FROM `project-080302-420409.Covid_deaths.Covid_death  `
+WHERE continent is not NULL
+GROUP BY location
+ORDER BY Top_death DESC;
+
+
+-- tìm lục địa có tỉ lệ tử vong cao nhất, exclude vài mục location ngoài như dưới
+SELECT continent, MAX(total_deaths) as Top_death
+FROM `project-080302-420409.Covid_deaths.Covid_death  `
+WHERE location not in ('High income','Upper middle income','Lower middle income' ,'Low income') and continent is NOT NULL
+GROUP BY continent
+ORDER BY Top_death DESC;
+
+-- số liệu toàn cầu theo ngày, tổng tử vong mới trên tổng ca nhiễm mới
+-- dùng bthg bigquery hiện 'division by 0' -> dùng COALESCE để lệnh chạy
+SELECT date, SUM(COALESCE(new_cases, 0)) as sum_new_case, SUM(COALESCE(new_deaths, 0)) as sum_new_death,
+CASE
+  WHEN SUM(COALESCE(new_cases, 0)) = 0 THEN 0
+  ELSE SUM(COALESCE(new_deaths, 0))/ SUM(COALESCE(new_cases, 0))*100 
+END AS pct_death
+FROM `project-080302-420409.Covid_deaths.Covid_death  `
+WHERE continent is not NULL
+GROUP BY date 
+ORDER BY 1,2;
+
+-- chia toàn cầu bỏ ngày
+SELECT SUM(COALESCE(new_cases, 0)) as sum_new_case, SUM(COALESCE(new_deaths, 0)) as sum_new_death,
+CASE
+  WHEN SUM(COALESCE(new_cases, 0)) = 0 THEN 0
+  ELSE SUM(COALESCE(new_deaths, 0))/ SUM(COALESCE(new_cases, 0))*100 
+END AS pct_death
+FROM `project-080302-420409.Covid_deaths.Covid_death  `
+WHERE continent is not NULL
+ORDER BY 1,2;
+
+
+-- so tổng population vs tổng vaccine ở việt nam
+SELECT dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location, dea.date) as VaccineCount_ByDay
+FROM `project-080302-420409.Covid_deaths.Covid_death  ` as dea
+JOIN `project-080302-420409.Covid_vaccine.CovidVaccine` as vac
+ON dea.location = vac.location 
+  AND dea.date = vac.date
+WHERE dea.continent is not null and vac.location = "Vietnam"
+ORDER BY 2,3;
+
+-- mình muốn ss bằng cte hoặc temp_table -> up to u :>
+WITH VacvsPop 
+AS    
+( 
+  SELECT dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location, dea.date) as VaccineCount_ByDay
+FROM `project-080302-420409.Covid_deaths.Covid_death  ` as dea
+JOIN `project-080302-420409.Covid_vaccine.CovidVaccine` as vac
+ON dea.location = vac.location 
+  AND dea.date = vac.date
+WHERE dea.continent is not null and dea.date < '2023-05-05'
+ORDER BY 2,3
+)
+SELECT *, (VaccineCount_ByDay/Population)*100 as CountOn_Pop
+FROM VacvsPop;
+
+
+-- giữ data để tải lên Tableu :( (mỏi quá dcm) -- cái này trên bigquey đang hiện k được mà mình chưa biết sửa sao :(((
+CREATE VIEW Pct_Vaccine_pop AS
+SELECT dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location, dea.date) as VaccineCount_ByDay
+FROM `project-080302-420409.Covid_deaths.Covid_death  ` as dea
+JOIN `project-080302-420409.Covid_vaccine.CovidVaccine` as vac
+ON dea.location = vac.location 
+  AND dea.date = vac.date
+WHERE dea.continent is not null and dea.date < '2023-05-05';
+--ORDER BY 2,3
+
+SELECT *
+FROM Pct_Vaccine_pop
