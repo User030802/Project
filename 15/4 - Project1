@@ -94,7 +94,7 @@ SELECT *, (VaccineCount_ByDay/Population)*100 as CountOn_Pop
 FROM VacvsPop;
 
 
--- giữ data để tải lên Tableu :( (mỏi quá dcm) -- cái này trên bigquey đang hiện k được mà mình chưa biết sửa sao :(((
+-- giữ data để tải lên Tableu :( -- cái này trên bigquey đang hiện k được mà mình chưa biết sửa sao :(((
 CREATE VIEW Pct_Vaccine_pop AS
 SELECT dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, SUM(vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location, dea.date) as VaccineCount_ByDay
 FROM `project-080302-420409.Covid_deaths.Covid_death  ` as dea
